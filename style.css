@@ -1,0 +1,225 @@
+:root {
+  --bg: #f7f6f3;
+  --fg: #1c1b19;
+  --muted: #6b6a66;
+  --card: #ffffff;
+  --border: #e4e2dd;
+  --accent: #b5651d;
+  --accent-2: #2f7d5f;
+  --gauge-track: #ddd9d1;
+  --bar-in: #b5651d;
+  --bar-out: #d8d5cf;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16151a;
+    --fg: #f1efe9;
+    --muted: #9b9990;
+    --card: #201f26;
+    --border: #322f38;
+    --accent: #e08a3c;
+    --accent-2: #4fb98a;
+    --gauge-track: #3a3742;
+    --bar-in: #e08a3c;
+    --bar-out: #3a3742;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 100vh;
+}
+
+.app-header {
+  text-align: center;
+  padding: 2rem 1rem 1rem;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1.5rem auto 0;
+}
+
+.tab-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 0.55rem 1.2rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.mic-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+
+#micBtn {
+  background: var(--accent-2);
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1.1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+#micBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.status {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.tab-panel {
+  display: none;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+.note-display {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.note-name {
+  font-size: 4rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.note-freq {
+  color: var(--muted);
+  margin-top: 0.3rem;
+}
+
+.gauge-svg {
+  width: 100%;
+  max-width: 280px;
+  display: block;
+  margin: 0 auto;
+}
+
+#needle {
+  transform-origin: 100px 100px;
+  transition: transform 0.08s linear;
+}
+
+.gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  max-width: 280px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.cents {
+  text-align: center;
+  margin-top: 0.5rem;
+  font-size: 1.1rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.key-result {
+  text-align: center;
+  margin-bottom: 1.2rem;
+}
+
+.key-name {
+  font-size: 2.4rem;
+  font-weight: 700;
+}
+
+.key-confidence {
+  color: var(--muted);
+  margin-top: 0.3rem;
+}
+
+.chroma-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 140px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+
+.chroma-bar-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.chroma-bar {
+  width: 100%;
+  background: var(--bar-out);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.1s linear, background 0.15s linear;
+}
+
+.chroma-bar.in-scale {
+  background: var(--bar-in);
+}
+
+.chroma-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.3rem;
+}
+
+.note-later {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 1.2rem 0 0;
+  text-align: center;
+}

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tewahdo Instruments</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="app-header">
+  <h1>Tewahdo Instruments</h1>
+  <p class="subtitle">Chromatic tuner &amp; Ethiopian pentatonic key detector</p>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="tuner">Tuner</button>
+  <button class="tab-btn" data-tab="key">Key Detector</button>
+</nav>
+
+<main>
+  <div class="mic-bar">
+    <button id="micBtn">Start Microphone</button>
+    <span id="micStatus" class="status">Microphone not started</span>
+  </div>
+
+  <section id="tuner" class="tab-panel active">
+    <div class="note-display">
+      <div id="noteName" class="note-name">--</div>
+      <div id="noteFreq" class="note-freq">0.0 Hz</div>
+    </div>
+
+    <div class="gauge">
+      <svg viewBox="0 0 200 110" class="gauge-svg">
+        <path d="M 10 100 A 90 90 0 0 1 190 100" fill="none" stroke="var(--gauge-track)" stroke-width="6" />
+        <line id="needle" x1="100" y1="100" x2="100" y2="20" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" />
+        <circle cx="100" cy="100" r="5" fill="var(--accent)" />
+      </svg>
+      <div class="gauge-labels">
+        <span>-50c</span>
+        <span>in tune</span>
+        <span>+50c</span>
+      </div>
+    </div>
+    <div id="cents" class="cents">0 cents</div>
+  </section>
+
+  <section id="key" class="tab-panel">
+    <div class="key-result">
+      <div id="keyName" class="key-name">--</div>
+      <div id="keyConfidence" class="key-confidence">confidence: 0%</div>
+    </div>
+
+    <div id="chromaChart" class="chroma-chart"></div>
+
+    <p class="note-later">
+      Currently detects <strong>major pentatonic</strong> only (e.g. F major = F G A C D).
+      Minor and other Ethiopian qenet (Tizita, Bati, Ambassel, Anchihoye) are coming later.
+    </p>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
