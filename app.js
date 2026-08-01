@@ -1,14 +1,27 @@
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const MAJOR_PENTATONIC_OFFSETS = [0, 2, 4, 7, 9];
-const CHROMA_DECAY = 0.95;
-const MIN_FREQ = 80;
-const MAX_FREQ = 5000;
+
+// Chroma extraction range/threshold and block-voting window, tuned against
+// ~24 real Ethiopian mezmur clips (one 60s excerpt each for all 12 major
+// pentatonic keys). Only spectral peaks (not raw broadband energy) are
+// counted, which avoids percussion/harmonic noise drowning out the melody
+// and fixed a "dominant note mistaken for tonic" bias in earlier testing.
+const MIN_FREQ = 150;
+const MAX_FREQ = 1800;
+const PEAK_RANGE_DB = 20;
+const SILENCE_DB = -85;
+const BLOCK_MS = 4000;
+const DISPLAY_DECAY = 0.9;
+const TUNER_BUFFER_SIZE = 2048;
 
 let audioCtx = null;
 let analyser = null;
 let timeData = null;
 let freqData = null;
-let chroma = new Array(12).fill(0);
+let displayChroma = new Array(12).fill(0);
+let blockChroma = new Array(12).fill(0);
+let blockStartTime = 0;
+let votes = new Array(12).fill(0);
 
 const micBtn = document.getElementById("micBtn");
 const micStatus = document.getElementById("micStatus");
@@ -55,12 +68,13 @@ async function startMic() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const source = audioCtx.createMediaStreamSource(stream);
     analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
+    analyser.fftSize = 4096;
     analyser.smoothingTimeConstant = 0;
     source.connect(analyser);
 
     timeData = new Float32Array(analyser.fftSize);
     freqData = new Float32Array(analyser.frequencyBinCount);
+    blockStartTime = performance.now();
 
     micStatus.textContent = "Listening";
     micBtn.textContent = "Microphone Active";
@@ -76,7 +90,7 @@ function update() {
   analyser.getFloatTimeDomainData(timeData);
   analyser.getFloatFrequencyData(freqData);
 
-  updateTuner(timeData, audioCtx.sampleRate);
+  updateTuner(timeData.subarray(0, TUNER_BUFFER_SIZE), audioCtx.sampleRate);
   updateChroma(freqData, audioCtx.sampleRate);
   updateKeyDisplay();
 
@@ -166,58 +180,95 @@ function autoCorrelate(buf, sampleRate) {
   return sampleRate / T0;
 }
 
+// Only counts local spectral peaks (not raw bin energy) within PEAK_RANGE_DB
+// of the loudest peak in range, restricted to the melodic fundamental range.
+// This is what separates real melody content from percussion/harmonic smear.
 function updateChroma(freqData, sampleRate) {
   const binHz = sampleRate / analyser.fftSize;
-  const newEnergy = new Array(12).fill(0);
-
   const minBin = Math.max(1, Math.floor(MIN_FREQ / binHz));
-  const maxBin = Math.min(freqData.length - 1, Math.ceil(MAX_FREQ / binHz));
+  const maxBin = Math.min(freqData.length - 2, Math.floor(MAX_FREQ / binHz));
 
+  let frameMaxDb = -Infinity;
   for (let i = minBin; i <= maxBin; i++) {
-    const db = freqData[i];
-    if (db < -90) continue;
+    if (freqData[i] > frameMaxDb) frameMaxDb = freqData[i];
+  }
+  if (frameMaxDb < SILENCE_DB) return;
+
+  const newEnergy = new Array(12).fill(0);
+  for (let i = minBin + 1; i < maxBin; i++) {
+    const v = freqData[i];
+    const isPeak = v > freqData[i - 1] && v > freqData[i + 1];
+    if (!isPeak || v < frameMaxDb - PEAK_RANGE_DB) continue;
     const freq = i * binHz;
-    const amp = Math.pow(10, db / 20);
+    const amp = Math.pow(10, v / 20);
     const noteNum = 12 * Math.log2(freq / 440) + 69;
     const pitchClass = ((Math.round(noteNum) % 12) + 12) % 12;
     newEnergy[pitchClass] += amp;
   }
 
   for (let i = 0; i < 12; i++) {
-    chroma[i] = chroma[i] * CHROMA_DECAY + newEnergy[i] * (1 - CHROMA_DECAY);
+    blockChroma[i] += newEnergy[i];
+    displayChroma[i] = displayChroma[i] * DISPLAY_DECAY + newEnergy[i] * (1 - DISPLAY_DECAY);
+  }
+
+  const now = performance.now();
+  if (now - blockStartTime >= BLOCK_MS) {
+    const [root] = bestPentatonicRoot(blockChroma);
+    if (root !== null) votes[root]++;
+    blockChroma = new Array(12).fill(0);
+    blockStartTime = now;
   }
 }
 
-function updateKeyDisplay() {
-  const total = chroma.reduce((a, b) => a + b, 0);
-  if (total < 1e-6) {
-    keyNameEl.textContent = "--";
-    keyConfidenceEl.textContent = "confidence: 0%";
-    chromaBars.forEach((bar) => {
-      bar.style.height = "2px";
-      bar.classList.remove("in-scale");
-    });
-    return;
-  }
+function bestPentatonicRoot(chromaVec) {
+  const total = chromaVec.reduce((a, b) => a + b, 0);
+  if (total < 1e-6) return [null, 0];
 
   let bestRoot = 0;
   let bestScore = -Infinity;
   for (let root = 0; root < 12; root++) {
     const scaleTones = MAJOR_PENTATONIC_OFFSETS.map((o) => (root + o) % 12);
-    const inSum = scaleTones.reduce((sum, pc) => sum + chroma[pc], 0);
+    const inSum = scaleTones.reduce((sum, pc) => sum + chromaVec[pc], 0);
     if (inSum > bestScore) {
       bestScore = inSum;
       bestRoot = root;
     }
   }
+  return [bestRoot, bestScore / total];
+}
 
-  const confidence = Math.round((bestScore / total) * 100);
-  keyNameEl.textContent = `${NOTE_NAMES[bestRoot]} Major (pentatonic)`;
-  keyConfidenceEl.textContent = `confidence: ${confidence}%`;
+// The detected key is the most-voted root across completed 4s blocks (a
+// simple temporal vote is more robust than one running average, since it
+// isn't skewed by a single loud instrumental passage). Until the first
+// block completes, fall back to a provisional read of the in-progress block.
+function updateKeyDisplay() {
+  const totalVotes = votes.reduce((a, b) => a + b, 0);
 
-  const scaleTones = new Set(MAJOR_PENTATONIC_OFFSETS.map((o) => (bestRoot + o) % 12));
-  const maxVal = Math.max(...chroma, 1e-6);
-  chroma.forEach((val, i) => {
+  if (totalVotes === 0) {
+    const [root, ratio] = bestPentatonicRoot(blockChroma);
+    if (root === null) {
+      keyNameEl.textContent = "--";
+      keyConfidenceEl.textContent = "confidence: 0%";
+    } else {
+      keyNameEl.textContent = `${NOTE_NAMES[root]} Major (pentatonic)`;
+      keyConfidenceEl.textContent = `confidence: ${Math.round(ratio * 100)}% (listening...)`;
+    }
+  } else {
+    let bestRoot = 0;
+    for (let i = 1; i < 12; i++) {
+      if (votes[i] > votes[bestRoot]) bestRoot = i;
+    }
+    const confidence = Math.round((votes[bestRoot] / totalVotes) * 100);
+    keyNameEl.textContent = `${NOTE_NAMES[bestRoot]} Major (pentatonic)`;
+    keyConfidenceEl.textContent = `confidence: ${confidence}% (${totalVotes} sample${totalVotes > 1 ? "s" : ""})`;
+  }
+
+  const [displayRoot] = bestPentatonicRoot(displayChroma);
+  const scaleTones = new Set(
+    displayRoot === null ? [] : MAJOR_PENTATONIC_OFFSETS.map((o) => (displayRoot + o) % 12)
+  );
+  const maxVal = Math.max(...displayChroma, 1e-6);
+  displayChroma.forEach((val, i) => {
     const heightPx = Math.max(2, (val / maxVal) * 130);
     chromaBars[i].style.height = `${heightPx}px`;
     chromaBars[i].classList.toggle("in-scale", scaleTones.has(i));
