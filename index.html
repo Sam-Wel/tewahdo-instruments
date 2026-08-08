@@ -83,17 +83,30 @@
   </section>
 
   <section id="mezmur" class="section-panel">
-    <p class="section-intro">Lyrics, organized by theme and tempo.</p>
+    <p class="section-intro">Lyrics, organized by theme, language, and tempo.</p>
+    <div class="mezmur-search">
+      <input type="search" id="mezmurSearch" placeholder="Search by title..." autocomplete="off" />
+      <select id="mezmurSort">
+        <option value="title.asc">Title A–Z</option>
+        <option value="title.desc">Title Z–A</option>
+        <option value="created_at.desc">Newest first</option>
+      </select>
+    </div>
     <div class="mezmur-filters">
       <div class="filter-group">
         <span class="filter-label">Theme</span>
         <div id="topicFilters" class="filter-chips"></div>
       </div>
       <div class="filter-group">
+        <span class="filter-label">Language</span>
+        <div id="languageFilters" class="filter-chips"></div>
+      </div>
+      <div class="filter-group">
         <span class="filter-label">Speed</span>
         <div id="speedFilters" class="filter-chips"></div>
       </div>
     </div>
+    <div id="mezmurStatus" class="section-intro"></div>
     <div id="mezmurList" class="mezmur-list"></div>
   </section>
 </main>

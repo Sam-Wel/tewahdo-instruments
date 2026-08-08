@@ -14,21 +14,10 @@ const KEY_PLAYLISTS = [
   { key: "A#/Bb", label: "A#/Bb Major", playlistId: "PLA6DphA3OcLGXdI4rAP67jd0_qwsBGAjw" },
 ];
 
-// Mezmur lyrics library, organized by topic and speed. This is a starter
-// seed — add your own entries in the same shape. speed is "slow", "medium",
-// or "fast".
-const MEZMUR_LIBRARY = [
-  {
-    title: "Example: Praise placeholder",
-    topic: "Praise",
-    speed: "slow",
-    lyrics:
-      "Add the Amharic/Ge'ez lyrics here.\nThis entry is just a placeholder showing the format — replace it in data.js.",
-  },
-  {
-    title: "Example: Repentance placeholder",
-    topic: "Repentance",
-    speed: "medium",
-    lyrics: "Add lyrics here in data.js, following this same entry shape.",
-  },
-];
+// Mezmur lyrics now live in Supabase (public read via anon key + RLS,
+// writes gated behind /api/mezmur + the admin password). The anon key is
+// safe to expose client-side by design — it only grants what the RLS
+// policies allow, which is read-only SELECT on the mezmur table.
+const SUPABASE_URL = "https://lrmdiaokkuaoitwxlnqp.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxybWRpYW9ra3Vhb2l0d3hsbnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxNjUyNTUsImV4cCI6MjEwMTc0MTI1NX0.KvNft82LPv1wL84t3Avuzw6PPJR3lv8GZaYVRzNywUk";

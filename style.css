@@ -413,6 +413,43 @@ main {
 
 /* ---------- Mezmur lyrics ---------- */
 
+.mezmur-search {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.2rem;
+}
+
+.mezmur-search input[type="search"] {
+  flex: 1;
+  padding: 0.55rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.mezmur-search select {
+  padding: 0.55rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.media-link {
+  display: inline-block;
+  margin-top: 0.8rem;
+  color: var(--gold-bright);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.media-link:hover { text-decoration: underline; }
+
 .mezmur-filters {
   margin-bottom: 1.5rem;
 }

@@ -1,5 +1,7 @@
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const MAJOR_PENTATONIC_OFFSETS = [0, 2, 4, 7, 9];
+const LANGUAGES = ["Amharic", "Tigrinya", "Ge'ez", "Other"];
+const SPEEDS = ["slow", "medium", "fast"];
 
 // Chroma extraction range/threshold and block-voting window, tuned against
 // ~24 real Ethiopian mezmur clips (one 60s excerpt each for all 12 major
@@ -321,15 +323,43 @@ function renderPlaylistGrid() {
   });
 }
 
-function renderMezmurSection() {
-  const topics = ["All", ...new Set(MEZMUR_LIBRARY.map((m) => m.topic))];
-  const speeds = ["all", "slow", "medium", "fast"];
-  let activeTopic = "All";
-  let activeSpeed = "all";
+async function fetchMezmur({ topic, language, speed, search, sort }) {
+  const params = new URLSearchParams();
+  params.set("select", "*");
+  params.set("order", sort || "title.asc");
+  if (topic && topic !== "All") params.set("topic", `eq.${topic}`);
+  if (language && language !== "All") params.set("language", `eq.${language}`);
+  if (speed && speed !== "all") params.set("speed", `eq.${speed}`);
+  if (search) params.set("title", `ilike.*${search}*`);
 
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/mezmur?${params.toString()}`, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+  if (!resp.ok) throw new Error(`Supabase fetch failed: ${resp.status}`);
+  return resp.json();
+}
+
+function mediaLinkHtml(url) {
+  if (!url) return "";
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="media-link">▶ Watch / Listen</a>`;
+}
+
+function renderMezmurSection() {
   const topicEl = document.getElementById("topicFilters");
+  const languageEl = document.getElementById("languageFilters");
   const speedEl = document.getElementById("speedFilters");
   const listEl = document.getElementById("mezmurList");
+  const statusEl = document.getElementById("mezmurStatus");
+  const searchEl = document.getElementById("mezmurSearch");
+  const sortEl = document.getElementById("mezmurSort");
+
+  let activeTopic = "All";
+  let activeLanguage = "All";
+  let activeSpeed = "all";
+  let searchTimer = null;
 
   const speedLabel = (s) => (s === "all" ? "All" : s[0].toUpperCase() + s.slice(1));
 
@@ -345,40 +375,61 @@ function renderMezmurSection() {
     });
   }
 
-  function renderList() {
-    const filtered = MEZMUR_LIBRARY.filter(
-      (m) => (activeTopic === "All" || m.topic === activeTopic) && (activeSpeed === "all" || m.speed === activeSpeed)
-    );
+  async function refreshList() {
+    statusEl.textContent = "Loading...";
     listEl.innerHTML = "";
-    if (filtered.length === 0) {
-      listEl.innerHTML = `<div class="empty-state">No mezmur match this filter yet. Add more entries in data.js.</div>`;
-      return;
+    try {
+      const rows = await fetchMezmur({
+        topic: activeTopic,
+        language: activeLanguage,
+        speed: activeSpeed,
+        search: searchEl.value.trim(),
+        sort: sortEl.value,
+      });
+      statusEl.textContent = "";
+
+      const topics = ["All", ...new Set(rows.map((m) => m.topic))];
+      renderChips(topicEl, topics, activeTopic, (v) => {
+        activeTopic = v;
+        refreshList();
+      });
+
+      if (rows.length === 0) {
+        listEl.innerHTML = `<div class="empty-state">No mezmur match this filter yet.</div>`;
+        return;
+      }
+      rows.forEach((m) => {
+        const details = document.createElement("details");
+        details.className = "mezmur-card";
+        details.innerHTML = `
+          <summary>
+            <span>${m.title}</span>
+            <span class="mezmur-tags"><span class="tag">${m.topic}</span><span class="tag">${m.language}</span><span class="tag">${m.speed}</span></span>
+          </summary>
+          <div class="mezmur-lyrics">${m.lyrics}${mediaLinkHtml(m.media_url)}</div>
+        `;
+        listEl.appendChild(details);
+      });
+    } catch (err) {
+      statusEl.textContent = "Could not load mezmur right now. Try again shortly.";
+      console.error(err);
     }
-    filtered.forEach((m) => {
-      const details = document.createElement("details");
-      details.className = "mezmur-card";
-      details.innerHTML = `
-        <summary>
-          <span>${m.title}</span>
-          <span class="mezmur-tags"><span class="tag">${m.topic}</span><span class="tag">${m.speed}</span></span>
-        </summary>
-        <div class="mezmur-lyrics">${m.lyrics}</div>
-      `;
-      listEl.appendChild(details);
-    });
   }
 
-  function refreshFilters() {
-    renderChips(topicEl, topics, activeTopic, (v) => {
-      activeTopic = v;
-      refreshFilters();
-    });
-    renderChips(speedEl, speeds, activeSpeed, (v) => {
-      activeSpeed = v;
-      refreshFilters();
-    }, speedLabel);
-    renderList();
-  }
+  renderChips(languageEl, ["All", ...LANGUAGES], activeLanguage, (v) => {
+    activeLanguage = v;
+    refreshList();
+  });
+  renderChips(speedEl, ["all", ...SPEEDS], activeSpeed, (v) => {
+    activeSpeed = v;
+    refreshList();
+  }, speedLabel);
 
-  refreshFilters();
+  searchEl.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(refreshList, 300);
+  });
+  sortEl.addEventListener("change", refreshList);
+
+  refreshList();
 }
