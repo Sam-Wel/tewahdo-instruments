@@ -58,7 +58,7 @@ function resetForm() {
 function fillForm(entry) {
   entryIdEl.value = entry.id;
   fTitle.value = entry.title;
-  fTopic.value = entry.topic;
+  fTopic.value = (entry.topics || []).join(", ");
   fLanguage.value = entry.language;
   fSpeed.value = entry.speed;
   fMedia.value = entry.media_url || "";
@@ -82,7 +82,7 @@ async function refreshAdminList() {
     row.innerHTML = `
       <div>
         <div class="admin-row-title">${entry.title}</div>
-        <div class="admin-row-meta">${entry.topic} · ${entry.language} · ${entry.speed}</div>
+        <div class="admin-row-meta">${(entry.topics || []).join(", ")} · ${entry.language} · ${entry.speed}</div>
       </div>
       <div class="admin-row-actions">
         <button class="btn btn-secondary" data-action="edit">Edit</button>
@@ -126,7 +126,7 @@ form.addEventListener("submit", async (e) => {
   formStatus.textContent = "Saving...";
   const payload = {
     title: fTitle.value.trim(),
-    topic: fTopic.value.trim(),
+    topics: fTopic.value.split(",").map((t) => t.trim()).filter(Boolean),
     language: fLanguage.value,
     speed: fSpeed.value,
     media_url: fMedia.value.trim() || null,

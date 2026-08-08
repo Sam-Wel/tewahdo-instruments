@@ -451,44 +451,91 @@ main {
 .media-link:hover { text-decoration: underline; }
 
 .mezmur-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
   margin-bottom: 1.5rem;
 }
 
-.filter-group {
-  margin-bottom: 0.7rem;
+.dropdown-check {
+  position: relative;
 }
 
-.filter-label {
-  display: block;
-  color: var(--muted);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 0.4rem;
-}
-
-.filter-chips {
+.dropdown-toggle {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.chip {
-  background: transparent;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-width: 150px;
+  background: var(--bg-card);
   border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 0.35rem 0.8rem;
-  border-radius: 999px;
-  font-size: 0.82rem;
+  color: var(--fg);
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
   font-family: inherit;
   cursor: pointer;
 }
 
-.chip.active {
-  background: var(--gold);
+.dropdown-toggle:hover {
   border-color: var(--gold);
-  color: #241a09;
+}
+
+.dropdown-toggle .count {
+  color: var(--gold-bright);
   font-weight: 600;
+}
+
+.dropdown-arrow {
+  color: var(--muted);
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+
+.dropdown-check.open .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.4rem;
+  z-index: 20;
+  box-shadow: 0 10px 28px var(--shadow);
+}
+
+.dropdown-check.open .dropdown-panel {
+  display: block;
+}
+
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--fg);
+}
+
+.dropdown-option:hover {
+  background: var(--bg-elevated);
+}
+
+.dropdown-option input[type="checkbox"] {
+  accent-color: var(--gold);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
 }
 
 .mezmur-list {

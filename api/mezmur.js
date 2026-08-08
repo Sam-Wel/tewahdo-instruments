@@ -20,15 +20,15 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "POST") {
-      const { title, topic, speed, language, lyrics, media_url } = req.body || {};
-      if (!title || !topic || !speed || !language || !lyrics) {
-        res.status(400).json({ error: "Missing required fields" });
+      const { title, topics, speed, language, lyrics, media_url } = req.body || {};
+      if (!title || !Array.isArray(topics) || topics.length === 0 || !speed || !language || !lyrics) {
+        res.status(400).json({ error: "Missing required fields (topics must be a non-empty array)" });
         return;
       }
       const resp = await fetch(`${SUPABASE_URL}/rest/v1/mezmur`, {
         method: "POST",
         headers: { ...baseHeaders, Prefer: "return=representation" },
-        body: JSON.stringify({ title, topic, speed, language, lyrics, media_url: media_url || null }),
+        body: JSON.stringify({ title, topics, speed, language, lyrics, media_url: media_url || null }),
       });
       const data = await resp.json();
       res.status(resp.ok ? 201 : resp.status).json(data);

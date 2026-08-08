@@ -323,15 +323,20 @@ function renderPlaylistGrid() {
   });
 }
 
-async function fetchMezmur({ topic, language, speed, search, sort }) {
-  const params = new URLSearchParams();
-  params.set("select", "*");
-  params.set("order", sort || "title.asc");
-  if (topic && topic !== "All") params.set("topic", `eq.${topic}`);
-  if (language && language !== "All") params.set("language", `eq.${language}`);
-  if (speed && speed !== "all") params.set("speed", `eq.${speed}`);
-  if (search) params.set("title", `ilike.*${search}*`);
+function pgQuoteInValue(v) {
+  return `"${String(v).replace(/"/g, '\\"')}"`;
+}
 
+function pgInParam(values) {
+  return `in.(${[...values].map(pgQuoteInValue).join(",")})`;
+}
+
+function pgArrayLiteral(values) {
+  const quoted = [...values].map((v) => `"${String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`);
+  return `{${quoted.join(",")}}`;
+}
+
+async function mezmurRestFetch(params) {
   const resp = await fetch(`${SUPABASE_URL}/rest/v1/mezmur?${params.toString()}`, {
     headers: {
       apikey: SUPABASE_ANON_KEY,
@@ -342,57 +347,117 @@ async function fetchMezmur({ topic, language, speed, search, sort }) {
   return resp.json();
 }
 
+async function fetchMezmur({ topics, languages, speeds, search, sort }) {
+  const params = new URLSearchParams();
+  params.set("select", "*");
+  params.set("order", sort || "title.asc");
+  if (topics && topics.size > 0) params.set("topics", `ov.${pgArrayLiteral(topics)}`);
+  if (languages && languages.size > 0) params.set("language", pgInParam(languages));
+  if (speeds && speeds.size > 0) params.set("speed", pgInParam(speeds));
+  if (search) params.set("title", `ilike.*${search}*`);
+  return mezmurRestFetch(params);
+}
+
+async function fetchDistinctTopics() {
+  const params = new URLSearchParams({ select: "topics" });
+  const rows = await mezmurRestFetch(params);
+  const all = rows.flatMap((r) => r.topics || []);
+  return [...new Set(all)].sort();
+}
+
 function mediaLinkHtml(url) {
   if (!url) return "";
   return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="media-link">▶ Watch / Listen</a>`;
 }
 
+// A dropdown button that expands into a checkbox list. `selected` is a
+// Set the caller owns; this only renders it and reports changes back via
+// onChange, so multiple dropdowns can share the same open/close handling.
+function createDropdownCheck(label, values, selected, onChange, labelFn) {
+  const wrap = document.createElement("div");
+  wrap.className = "dropdown-check";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "dropdown-toggle";
+
+  const panel = document.createElement("div");
+  panel.className = "dropdown-panel";
+
+  function renderToggleLabel() {
+    const count = selected.size;
+    toggle.innerHTML = `<span>${label}${count > 0 ? ` <span class="count">(${count})</span>` : ""}</span><span class="dropdown-arrow">▾</span>`;
+  }
+
+  function renderOptions() {
+    panel.innerHTML = "";
+    values.forEach((v) => {
+      const optLabel = document.createElement("label");
+      optLabel.className = "dropdown-option";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = selected.has(v);
+      cb.addEventListener("change", () => {
+        if (cb.checked) selected.add(v);
+        else selected.delete(v);
+        renderToggleLabel();
+        onChange();
+      });
+      optLabel.appendChild(cb);
+      optLabel.appendChild(document.createTextNode(" " + (labelFn ? labelFn(v) : v)));
+      panel.appendChild(optLabel);
+    });
+  }
+
+  toggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    document.querySelectorAll(".dropdown-check.open").forEach((el) => {
+      if (el !== wrap) el.classList.remove("open");
+    });
+    wrap.classList.toggle("open");
+  });
+
+  renderToggleLabel();
+  renderOptions();
+  wrap.appendChild(toggle);
+  wrap.appendChild(panel);
+  return { wrap, refreshOptions: renderOptions };
+}
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".dropdown-check")) {
+    document.querySelectorAll(".dropdown-check.open").forEach((el) => el.classList.remove("open"));
+  }
+});
+
 function renderMezmurSection() {
-  const topicEl = document.getElementById("topicFilters");
-  const languageEl = document.getElementById("languageFilters");
-  const speedEl = document.getElementById("speedFilters");
+  const topicGroup = document.getElementById("topicFilterGroup");
+  const languageGroup = document.getElementById("languageFilterGroup");
+  const speedGroup = document.getElementById("speedFilterGroup");
   const listEl = document.getElementById("mezmurList");
   const statusEl = document.getElementById("mezmurStatus");
   const searchEl = document.getElementById("mezmurSearch");
   const sortEl = document.getElementById("mezmurSort");
 
-  let activeTopic = "All";
-  let activeLanguage = "All";
-  let activeSpeed = "all";
+  const selectedTopics = new Set();
+  const selectedLanguages = new Set();
+  const selectedSpeeds = new Set();
   let searchTimer = null;
 
-  const speedLabel = (s) => (s === "all" ? "All" : s[0].toUpperCase() + s.slice(1));
-
-  function renderChips(container, values, active, onPick, labelFn) {
-    container.innerHTML = "";
-    values.forEach((v) => {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "chip" + (v === active ? " active" : "");
-      chip.textContent = labelFn ? labelFn(v) : v;
-      chip.addEventListener("click", () => onPick(v));
-      container.appendChild(chip);
-    });
-  }
+  const speedLabel = (s) => s[0].toUpperCase() + s.slice(1);
 
   async function refreshList() {
     statusEl.textContent = "Loading...";
     listEl.innerHTML = "";
     try {
       const rows = await fetchMezmur({
-        topic: activeTopic,
-        language: activeLanguage,
-        speed: activeSpeed,
+        topics: selectedTopics,
+        languages: selectedLanguages,
+        speeds: selectedSpeeds,
         search: searchEl.value.trim(),
         sort: sortEl.value,
       });
       statusEl.textContent = "";
-
-      const topics = ["All", ...new Set(rows.map((m) => m.topic))];
-      renderChips(topicEl, topics, activeTopic, (v) => {
-        activeTopic = v;
-        refreshList();
-      });
 
       if (rows.length === 0) {
         listEl.innerHTML = `<div class="empty-state">No mezmur match this filter yet.</div>`;
@@ -404,7 +469,7 @@ function renderMezmurSection() {
         details.innerHTML = `
           <summary>
             <span>${m.title}</span>
-            <span class="mezmur-tags"><span class="tag">${m.topic}</span><span class="tag">${m.language}</span><span class="tag">${m.speed}</span></span>
+            <span class="mezmur-tags">${(m.topics || []).map((t) => `<span class="tag">${t}</span>`).join("")}<span class="tag">${m.language}</span><span class="tag">${m.speed}</span></span>
           </summary>
           <div class="mezmur-lyrics">${m.lyrics}${mediaLinkHtml(m.media_url)}</div>
         `;
@@ -416,14 +481,18 @@ function renderMezmurSection() {
     }
   }
 
-  renderChips(languageEl, ["All", ...LANGUAGES], activeLanguage, (v) => {
-    activeLanguage = v;
-    refreshList();
-  });
-  renderChips(speedEl, ["all", ...SPEEDS], activeSpeed, (v) => {
-    activeSpeed = v;
-    refreshList();
-  }, speedLabel);
+  fetchDistinctTopics()
+    .then((topics) => {
+      const { wrap } = createDropdownCheck("Theme", topics, selectedTopics, refreshList);
+      topicGroup.appendChild(wrap);
+    })
+    .catch((err) => console.error(err));
+
+  const { wrap: languageWrap } = createDropdownCheck("Language", LANGUAGES, selectedLanguages, refreshList);
+  languageGroup.appendChild(languageWrap);
+
+  const { wrap: speedWrap } = createDropdownCheck("Speed", SPEEDS, selectedSpeeds, refreshList, speedLabel);
+  speedGroup.appendChild(speedWrap);
 
   searchEl.addEventListener("input", () => {
     clearTimeout(searchTimer);
