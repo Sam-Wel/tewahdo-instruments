@@ -48,14 +48,43 @@ const chromaBars = NOTE_NAMES.map((name) => {
   return bar;
 });
 
-document.querySelectorAll(".tab-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById(btn.dataset.tab).classList.add("active");
+const micBar = document.getElementById("micBar");
+const menuToggle = document.getElementById("menuToggle");
+const siteNav = document.getElementById("siteNav");
+const navBackdrop = document.getElementById("navBackdrop");
+const MIC_SECTIONS = new Set(["tuner", "key"]);
+
+function closeMenu() {
+  siteNav.classList.remove("open");
+  navBackdrop.classList.remove("open");
+  menuToggle.setAttribute("aria-expanded", "false");
+}
+
+function goToSection(sectionId) {
+  document.querySelectorAll(".nav-link").forEach((b) => b.classList.toggle("active", b.dataset.section === sectionId));
+  document.querySelectorAll(".section-panel").forEach((p) => p.classList.toggle("active", p.id === sectionId));
+  micBar.classList.toggle("hidden", !MIC_SECTIONS.has(sectionId));
+  closeMenu();
+}
+
+document.querySelectorAll("[data-section]").forEach((el) => {
+  el.addEventListener("click", (e) => {
+    e.preventDefault();
+    goToSection(el.dataset.section);
   });
 });
+
+menuToggle.addEventListener("click", () => {
+  const isOpen = siteNav.classList.toggle("open");
+  navBackdrop.classList.toggle("open", isOpen);
+  menuToggle.setAttribute("aria-expanded", String(isOpen));
+});
+
+navBackdrop.addEventListener("click", closeMenu);
+
+goToSection("tuner");
+renderPlaylistGrid();
+renderMezmurSection();
 
 micBtn.addEventListener("click", startMic);
 
@@ -273,4 +302,83 @@ function updateKeyDisplay() {
     chromaBars[i].style.height = `${heightPx}px`;
     chromaBars[i].classList.toggle("in-scale", scaleTones.has(i));
   });
+}
+
+function renderPlaylistGrid() {
+  const grid = document.getElementById("playlistGrid");
+  KEY_PLAYLISTS.forEach(({ key, label, playlistId }) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "playlist-card";
+    card.innerHTML = `<div class="key-label">${key}</div><div class="play-hint">${label} · ▶ Play</div>`;
+    card.addEventListener("click", () => {
+      const wrap = document.createElement("div");
+      wrap.className = "playlist-embed-wrap";
+      wrap.innerHTML = `<iframe src="https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1" title="${label} mezmur playlist" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+      card.replaceWith(wrap);
+    });
+    grid.appendChild(card);
+  });
+}
+
+function renderMezmurSection() {
+  const topics = ["All", ...new Set(MEZMUR_LIBRARY.map((m) => m.topic))];
+  const speeds = ["all", "slow", "medium", "fast"];
+  let activeTopic = "All";
+  let activeSpeed = "all";
+
+  const topicEl = document.getElementById("topicFilters");
+  const speedEl = document.getElementById("speedFilters");
+  const listEl = document.getElementById("mezmurList");
+
+  const speedLabel = (s) => (s === "all" ? "All" : s[0].toUpperCase() + s.slice(1));
+
+  function renderChips(container, values, active, onPick, labelFn) {
+    container.innerHTML = "";
+    values.forEach((v) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip" + (v === active ? " active" : "");
+      chip.textContent = labelFn ? labelFn(v) : v;
+      chip.addEventListener("click", () => onPick(v));
+      container.appendChild(chip);
+    });
+  }
+
+  function renderList() {
+    const filtered = MEZMUR_LIBRARY.filter(
+      (m) => (activeTopic === "All" || m.topic === activeTopic) && (activeSpeed === "all" || m.speed === activeSpeed)
+    );
+    listEl.innerHTML = "";
+    if (filtered.length === 0) {
+      listEl.innerHTML = `<div class="empty-state">No mezmur match this filter yet. Add more entries in data.js.</div>`;
+      return;
+    }
+    filtered.forEach((m) => {
+      const details = document.createElement("details");
+      details.className = "mezmur-card";
+      details.innerHTML = `
+        <summary>
+          <span>${m.title}</span>
+          <span class="mezmur-tags"><span class="tag">${m.topic}</span><span class="tag">${m.speed}</span></span>
+        </summary>
+        <div class="mezmur-lyrics">${m.lyrics}</div>
+      `;
+      listEl.appendChild(details);
+    });
+  }
+
+  function refreshFilters() {
+    renderChips(topicEl, topics, activeTopic, (v) => {
+      activeTopic = v;
+      refreshFilters();
+    });
+    renderChips(speedEl, speeds, activeSpeed, (v) => {
+      activeSpeed = v;
+      refreshFilters();
+    }, speedLabel);
+    renderList();
+  }
+
+  refreshFilters();
 }
