@@ -2,6 +2,7 @@ const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", 
 const MAJOR_PENTATONIC_OFFSETS = [0, 2, 4, 7, 9];
 const LANGUAGES = ["Amharic", "Tigrinya", "Ge'ez", "Other"];
 const SPEEDS = ["slow", "medium", "fast"];
+const LENGTHS = ["short", "long"];
 
 // Chroma extraction range/threshold and block-voting window, tuned against
 // ~24 real Ethiopian mezmur clips (one 60s excerpt each for all 12 major
@@ -347,13 +348,14 @@ async function mezmurRestFetch(params) {
   return resp.json();
 }
 
-async function fetchMezmur({ topics, languages, speeds, search, sort }) {
+async function fetchMezmur({ topics, languages, speeds, lengths, search, sort }) {
   const params = new URLSearchParams();
   params.set("select", "*");
   params.set("order", sort || "title.asc");
   if (topics && topics.size > 0) params.set("topics", `ov.${pgArrayLiteral(topics)}`);
   if (languages && languages.size > 0) params.set("language", pgInParam(languages));
   if (speeds && speeds.size > 0) params.set("speed", pgInParam(speeds));
+  if (lengths && lengths.size > 0) params.set("length", pgInParam(lengths));
   if (search) params.set("title", `ilike.*${search}*`);
   return mezmurRestFetch(params);
 }
@@ -370,10 +372,14 @@ function mediaLinkHtml(url) {
   return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="media-link">▶ Watch / Listen</a>`;
 }
 
-// A dropdown button that expands into a checkbox list. `selected` is a
-// Set the caller owns; this only renders it and reports changes back via
-// onChange, so multiple dropdowns can share the same open/close handling.
-function createDropdownCheck(label, values, selected, onChange, labelFn) {
+// A single dropdown button that expands into several nested checkbox
+// groups (Theme, Language, Speed, Length, ...), one per filter criterion.
+// `groups` is an array of { label, values, selected, labelFn } where
+// `selected` is a Set the caller owns; this only renders it and reports
+// changes back via onChange. `refreshGroupValues(groupIndex, values)` lets
+// a group's option list be filled in asynchronously (e.g. topics loaded
+// from the DB after the dropdown itself is already rendered).
+function createFilterDropdown(groups, onChange) {
   const wrap = document.createElement("div");
   wrap.className = "dropdown-check";
 
@@ -385,28 +391,39 @@ function createDropdownCheck(label, values, selected, onChange, labelFn) {
   panel.className = "dropdown-panel";
 
   function renderToggleLabel() {
-    const count = selected.size;
-    toggle.innerHTML = `<span>${label}${count > 0 ? ` <span class="count">(${count})</span>` : ""}</span><span class="dropdown-arrow">▾</span>`;
+    const count = groups.reduce((sum, g) => sum + g.selected.size, 0);
+    toggle.innerHTML = `<span>Filters${count > 0 ? ` <span class="count">(${count})</span>` : ""}</span><span class="dropdown-arrow">▾</span>`;
   }
 
-  function renderOptions() {
-    panel.innerHTML = "";
-    values.forEach((v) => {
+  function renderGroup(group) {
+    const section = document.createElement("div");
+    section.className = "dropdown-group";
+    const heading = document.createElement("div");
+    heading.className = "dropdown-group-label";
+    heading.textContent = group.label;
+    section.appendChild(heading);
+    group.values.forEach((v) => {
       const optLabel = document.createElement("label");
       optLabel.className = "dropdown-option";
       const cb = document.createElement("input");
       cb.type = "checkbox";
-      cb.checked = selected.has(v);
+      cb.checked = group.selected.has(v);
       cb.addEventListener("change", () => {
-        if (cb.checked) selected.add(v);
-        else selected.delete(v);
+        if (cb.checked) group.selected.add(v);
+        else group.selected.delete(v);
         renderToggleLabel();
         onChange();
       });
       optLabel.appendChild(cb);
-      optLabel.appendChild(document.createTextNode(" " + (labelFn ? labelFn(v) : v)));
-      panel.appendChild(optLabel);
+      optLabel.appendChild(document.createTextNode(" " + (group.labelFn ? group.labelFn(v) : v)));
+      section.appendChild(optLabel);
     });
+    return section;
+  }
+
+  function renderPanel() {
+    panel.innerHTML = "";
+    groups.forEach((group) => panel.appendChild(renderGroup(group)));
   }
 
   toggle.addEventListener("click", (e) => {
@@ -418,10 +435,17 @@ function createDropdownCheck(label, values, selected, onChange, labelFn) {
   });
 
   renderToggleLabel();
-  renderOptions();
+  renderPanel();
   wrap.appendChild(toggle);
   wrap.appendChild(panel);
-  return { wrap, refreshOptions: renderOptions };
+
+  return {
+    wrap,
+    setGroupValues(index, values) {
+      groups[index].values = values;
+      renderPanel();
+    },
+  };
 }
 
 document.addEventListener("click", (e) => {
@@ -431,9 +455,7 @@ document.addEventListener("click", (e) => {
 });
 
 function renderMezmurSection() {
-  const topicGroup = document.getElementById("topicFilterGroup");
-  const languageGroup = document.getElementById("languageFilterGroup");
-  const speedGroup = document.getElementById("speedFilterGroup");
+  const filtersEl = document.getElementById("mezmurFilters");
   const listEl = document.getElementById("mezmurList");
   const statusEl = document.getElementById("mezmurStatus");
   const searchEl = document.getElementById("mezmurSearch");
@@ -442,9 +464,10 @@ function renderMezmurSection() {
   const selectedTopics = new Set();
   const selectedLanguages = new Set();
   const selectedSpeeds = new Set();
+  const selectedLengths = new Set();
   let searchTimer = null;
 
-  const speedLabel = (s) => s[0].toUpperCase() + s.slice(1);
+  const capitalize = (s) => s[0].toUpperCase() + s.slice(1);
 
   async function refreshList() {
     statusEl.textContent = "Loading...";
@@ -454,6 +477,7 @@ function renderMezmurSection() {
         topics: selectedTopics,
         languages: selectedLanguages,
         speeds: selectedSpeeds,
+        lengths: selectedLengths,
         search: searchEl.value.trim(),
         sort: sortEl.value,
       });
@@ -469,7 +493,7 @@ function renderMezmurSection() {
         details.innerHTML = `
           <summary>
             <span>${m.title}</span>
-            <span class="mezmur-tags">${(m.topics || []).map((t) => `<span class="tag">${t}</span>`).join("")}<span class="tag">${m.language}</span><span class="tag">${m.speed}</span></span>
+            <span class="mezmur-tags">${(m.topics || []).map((t) => `<span class="tag">${t}</span>`).join("")}<span class="tag">${m.language}</span><span class="tag">${m.speed}</span><span class="tag">${m.length}</span></span>
           </summary>
           <div class="mezmur-lyrics">${m.lyrics}${mediaLinkHtml(m.media_url)}</div>
         `;
@@ -481,18 +505,20 @@ function renderMezmurSection() {
     }
   }
 
+  const filterDropdown = createFilterDropdown(
+    [
+      { label: "Theme", values: [], selected: selectedTopics },
+      { label: "Language", values: LANGUAGES, selected: selectedLanguages },
+      { label: "Speed", values: SPEEDS, selected: selectedSpeeds, labelFn: capitalize },
+      { label: "Length", values: LENGTHS, selected: selectedLengths, labelFn: capitalize },
+    ],
+    refreshList
+  );
+  filtersEl.appendChild(filterDropdown.wrap);
+
   fetchDistinctTopics()
-    .then((topics) => {
-      const { wrap } = createDropdownCheck("Theme", topics, selectedTopics, refreshList);
-      topicGroup.appendChild(wrap);
-    })
+    .then((topics) => filterDropdown.setGroupValues(0, topics))
     .catch((err) => console.error(err));
-
-  const { wrap: languageWrap } = createDropdownCheck("Language", LANGUAGES, selectedLanguages, refreshList);
-  languageGroup.appendChild(languageWrap);
-
-  const { wrap: speedWrap } = createDropdownCheck("Speed", SPEEDS, selectedSpeeds, refreshList, speedLabel);
-  speedGroup.appendChild(speedWrap);
 
   searchEl.addEventListener("input", () => {
     clearTimeout(searchTimer);

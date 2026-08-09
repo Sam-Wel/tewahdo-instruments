@@ -3,11 +3,14 @@
 # Lines starting with # are comments and are ignored.
 #
 # THEME: sets the current theme for songs that follow, until changed again.
-# LANGUAGE: / SPEED: outside an entry set the default for songs that follow.
+# LANGUAGE: / SPEED: / LENGTH: outside an entry set the default for songs
+# that follow.
 # Each song is a block starting with TITLE: and ending with a line of just ---
 #   THEMES:   optional, comma-separated — overrides/adds to the current THEME
 #   LANGUAGE: optional — overrides the current default language for this song
 #   SPEED:    optional — overrides the current default speed for this song
+#   LENGTH:   optional — overrides the current default length ("short" or
+#             "long") for this song
 #   MEDIA:    optional — a recording or YouTube link
 #   LYRICS:   required — everything after this line, up to the next ---, is
 #             the song's full lyrics (blank lines inside are kept as-is)
@@ -18,6 +21,7 @@
 THEME: Example Theme One
 LANGUAGE: Amharic
 SPEED: medium
+LENGTH: short
 
 TITLE: Example Song Title
 LYRICS:
@@ -32,6 +36,7 @@ TITLE: Another Example Song
 THEMES: Example Theme One, Example Theme Two
 LANGUAGE: Ge'ez
 SPEED: slow
+LENGTH: long
 MEDIA: https://youtube.com/watch?v=example
 LYRICS:
 Placeholder lyric line one.

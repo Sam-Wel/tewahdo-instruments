@@ -30,7 +30,7 @@ function loadEnvLocal() {
 }
 
 // Parses the plain-text import format into an array of entries:
-// { title, topics: [...], language, speed, media_url, lyrics }
+// { title, topics: [...], language, speed, length, media_url, lyrics }
 function parseImportFile(text) {
   const lines = text.split(/\r?\n/);
   const entries = [];
@@ -39,6 +39,7 @@ function parseImportFile(text) {
   let currentTheme = null;
   let defaultLanguage = "Amharic";
   let defaultSpeed = "medium";
+  let defaultLength = "short";
 
   let inEntry = false;
   let inLyrics = false;
@@ -91,6 +92,10 @@ function parseImportFile(text) {
       defaultSpeed = line.slice("SPEED:".length).trim();
       continue;
     }
+    if (line.startsWith("LENGTH:") && !inEntry) {
+      defaultLength = line.slice("LENGTH:".length).trim();
+      continue;
+    }
     if (line.startsWith("TITLE:")) {
       inEntry = true;
       entry = {
@@ -98,6 +103,7 @@ function parseImportFile(text) {
         topics: [],
         language: defaultLanguage,
         speed: defaultSpeed,
+        length: defaultLength,
         media_url: null,
       };
       continue;
@@ -112,6 +118,10 @@ function parseImportFile(text) {
     }
     if (inEntry && line.startsWith("SPEED:")) {
       entry.speed = line.slice("SPEED:".length).trim();
+      continue;
+    }
+    if (inEntry && line.startsWith("LENGTH:")) {
+      entry.length = line.slice("LENGTH:".length).trim();
       continue;
     }
     if (inEntry && line.startsWith("MEDIA:")) {

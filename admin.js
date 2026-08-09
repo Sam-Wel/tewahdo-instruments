@@ -10,6 +10,7 @@ const fTitle = document.getElementById("fTitle");
 const fTopic = document.getElementById("fTopic");
 const fLanguage = document.getElementById("fLanguage");
 const fSpeed = document.getElementById("fSpeed");
+const fLength = document.getElementById("fLength");
 const fMedia = document.getElementById("fMedia");
 const fLyrics = document.getElementById("fLyrics");
 const formTitle = document.getElementById("formTitle");
@@ -61,6 +62,7 @@ function fillForm(entry) {
   fTopic.value = (entry.topics || []).join(", ");
   fLanguage.value = entry.language;
   fSpeed.value = entry.speed;
+  fLength.value = entry.length;
   fMedia.value = entry.media_url || "";
   fLyrics.value = entry.lyrics;
   formTitle.textContent = `Edit: ${entry.title}`;
@@ -82,7 +84,7 @@ async function refreshAdminList() {
     row.innerHTML = `
       <div>
         <div class="admin-row-title">${entry.title}</div>
-        <div class="admin-row-meta">${(entry.topics || []).join(", ")} · ${entry.language} · ${entry.speed}</div>
+        <div class="admin-row-meta">${(entry.topics || []).join(", ")} · ${entry.language} · ${entry.speed} · ${entry.length}</div>
       </div>
       <div class="admin-row-actions">
         <button class="btn btn-secondary" data-action="edit">Edit</button>
@@ -129,6 +131,7 @@ form.addEventListener("submit", async (e) => {
     topics: fTopic.value.split(",").map((t) => t.trim()).filter(Boolean),
     language: fLanguage.value,
     speed: fSpeed.value,
+    length: fLength.value,
     media_url: fMedia.value.trim() || null,
     lyrics: fLyrics.value,
   };
