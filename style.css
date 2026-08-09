@@ -269,6 +269,7 @@ main {
   font-weight: 700;
   line-height: 1;
   color: var(--gold-bright);
+  transition: color 0.15s linear;
 }
 
 .note-freq {
@@ -285,7 +286,7 @@ main {
 
 #needle {
   transform-origin: 100px 100px;
-  transition: transform 0.08s linear;
+  transition: transform 0.08s linear, stroke 0.15s linear;
 }
 
 .gauge-labels {
@@ -303,6 +304,7 @@ main {
   font-size: 1.1rem;
   color: var(--gold-bright);
   font-weight: 600;
+  transition: color 0.15s linear;
 }
 
 /* ---------- Key detector ---------- */

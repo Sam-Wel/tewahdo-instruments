@@ -17,6 +17,21 @@ const BLOCK_MS = 4000;
 const DISPLAY_DECAY = 0.9;
 const TUNER_BUFFER_SIZE = 2048;
 
+// A pitch reading is only trusted (and shown) once its autocorrelation
+// clarity — how strongly the signal repeats at the detected period, 1.0
+// being a pure tone — clears this bar. Talking, clapping, and other
+// non-tonal noise score low and get ignored instead of jerking the needle.
+const TUNER_CLARITY_THRESHOLD = 0.92;
+// Smooths the displayed cents/needle across frames so a single noisy
+// sample can't yank the display; low enough to still feel responsive.
+const CENTS_SMOOTHING = 0.35;
+// A block only casts a key-detector vote if its best pentatonic root
+// captures this fraction of the block's total chroma energy. Below it,
+// the block is too ambiguous (noise, percussion, silence) to trust —
+// chance alone gives ~0.42 for a random 5-of-12 scale, so this must clear
+// that by a real margin.
+const MIN_BLOCK_CONFIDENCE = 0.55;
+
 let audioCtx = null;
 let analyser = null;
 let timeData = null;
@@ -25,6 +40,7 @@ let displayChroma = new Array(12).fill(0);
 let blockChroma = new Array(12).fill(0);
 let blockStartTime = 0;
 let votes = new Array(12).fill(0);
+let smoothedCents = null;
 
 const micBtn = document.getElementById("micBtn");
 const micStatus = document.getElementById("micStatus");
@@ -129,13 +145,29 @@ function update() {
   requestAnimationFrame(update);
 }
 
+// Maps how close a reading is to being in tune to a green→red color: 0
+// cents (dead on) is green, ±50 cents (a semitone off) is red.
+function tuningColor(cents) {
+  const abs = Math.min(50, Math.abs(cents));
+  const hue = 120 - (abs / 50) * 120;
+  return `hsl(${hue}, 75%, 55%)`;
+}
+
+function resetTunerDisplay() {
+  smoothedCents = null;
+  noteNameEl.textContent = "--";
+  noteNameEl.style.color = "";
+  noteFreqEl.textContent = "0.0 Hz";
+  centsEl.textContent = "0 cents";
+  centsEl.style.color = "";
+  needleEl.style.stroke = "";
+  needleEl.style.transform = "rotate(0deg)";
+}
+
 function updateTuner(buf, sampleRate) {
-  const freq = autoCorrelate(buf, sampleRate);
-  if (freq === -1) {
-    noteNameEl.textContent = "--";
-    noteFreqEl.textContent = "0.0 Hz";
-    centsEl.textContent = "0 cents";
-    needleEl.style.transform = "rotate(0deg)";
+  const [freq, clarity] = autoCorrelate(buf, sampleRate);
+  if (freq === -1 || clarity < TUNER_CLARITY_THRESHOLD) {
+    resetTunerDisplay();
     return;
   }
 
@@ -144,15 +176,26 @@ function updateTuner(buf, sampleRate) {
   const cents = Math.floor(1200 * Math.log2(freq / noteFreq));
   const name = NOTE_NAMES[((noteNum % 12) + 12) % 12];
 
-  noteNameEl.textContent = name;
-  noteFreqEl.textContent = `${freq.toFixed(1)} Hz`;
-  centsEl.textContent = `${cents > 0 ? "+" : ""}${cents} cents`;
+  smoothedCents = smoothedCents === null ? cents : smoothedCents + (cents - smoothedCents) * CENTS_SMOOTHING;
+  const displayCents = Math.round(smoothedCents);
+  const color = tuningColor(smoothedCents);
 
-  const clamped = Math.max(-50, Math.min(50, cents));
+  noteNameEl.textContent = name;
+  noteNameEl.style.color = color;
+  noteFreqEl.textContent = `${freq.toFixed(1)} Hz`;
+  centsEl.textContent = `${displayCents > 0 ? "+" : ""}${displayCents} cents`;
+  centsEl.style.color = color;
+
+  const clamped = Math.max(-50, Math.min(50, smoothedCents));
   const angle = (clamped / 50) * 90;
   needleEl.style.transform = `rotate(${angle}deg)`;
+  needleEl.style.stroke = color;
 }
 
+// Returns [frequency, clarity]. clarity is the autocorrelation peak
+// normalized against lag-0 energy (1.0 = perfectly periodic, near 0 =
+// noise) — how a YIN-style pitch tracker judges whether a reading is
+// trustworthy rather than an artifact of noise or a transient.
 function autoCorrelate(buf, sampleRate) {
   const SIZE = buf.length;
   let rms = 0;
@@ -160,7 +203,7 @@ function autoCorrelate(buf, sampleRate) {
     rms += buf[i] * buf[i];
   }
   rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.01) return -1;
+  if (rms < 0.01) return [-1, 0];
 
   let r1 = 0;
   let r2 = SIZE - 1;
@@ -199,7 +242,9 @@ function autoCorrelate(buf, sampleRate) {
     }
   }
   let T0 = maxPos;
-  if (T0 <= 0) return -1;
+  if (T0 <= 0) return [-1, 0];
+
+  const clarity = c[0] > 0 ? Math.max(0, maxVal / c[0]) : 0;
 
   const x1 = c[T0 - 1] !== undefined ? c[T0 - 1] : c[T0];
   const x2 = c[T0];
@@ -208,8 +253,8 @@ function autoCorrelate(buf, sampleRate) {
   const b = (x3 - x1) / 2;
   if (a !== 0) T0 = T0 - b / (2 * a);
 
-  if (T0 <= 0) return -1;
-  return sampleRate / T0;
+  if (T0 <= 0) return [-1, 0];
+  return [sampleRate / T0, clarity];
 }
 
 // Only counts local spectral peaks (not raw bin energy) within PEAK_RANGE_DB
@@ -245,8 +290,8 @@ function updateChroma(freqData, sampleRate) {
 
   const now = performance.now();
   if (now - blockStartTime >= BLOCK_MS) {
-    const [root] = bestPentatonicRoot(blockChroma);
-    if (root !== null) votes[root]++;
+    const [root, ratio] = bestPentatonicRoot(blockChroma);
+    if (root !== null && ratio >= MIN_BLOCK_CONFIDENCE) votes[root]++;
     blockChroma = new Array(12).fill(0);
     blockStartTime = now;
   }
