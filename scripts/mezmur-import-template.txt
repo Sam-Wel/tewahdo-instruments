@@ -1,0 +1,46 @@
+# Mezmur bulk-import format
+#
+# Lines starting with # are comments and are ignored.
+#
+# THEME: sets the current theme for songs that follow, until changed again.
+# LANGUAGE: / SPEED: outside an entry set the default for songs that follow.
+# Each song is a block starting with TITLE: and ending with a line of just ---
+#   THEMES:   optional, comma-separated — overrides/adds to the current THEME
+#   LANGUAGE: optional — overrides the current default language for this song
+#   SPEED:    optional — overrides the current default speed for this song
+#   MEDIA:    optional — a recording or YouTube link
+#   LYRICS:   required — everything after this line, up to the next ---, is
+#             the song's full lyrics (blank lines inside are kept as-is)
+#
+# This file's content below is placeholder example text only, just to show
+# the shape of the format — replace it with your own transcribed material.
+
+THEME: Example Theme One
+LANGUAGE: Amharic
+SPEED: medium
+
+TITLE: Example Song Title
+LYRICS:
+Example first line of the song.
+Example second line of the song.
+
+Example second verse, first line.
+Example second verse, second line.
+---
+
+TITLE: Another Example Song
+THEMES: Example Theme One, Example Theme Two
+LANGUAGE: Ge'ez
+SPEED: slow
+MEDIA: https://youtube.com/watch?v=example
+LYRICS:
+Placeholder lyric line one.
+Placeholder lyric line two.
+---
+
+THEME: Example Theme Two
+
+TITLE: Third Example Song
+LYRICS:
+More placeholder lyric text here.
+---
