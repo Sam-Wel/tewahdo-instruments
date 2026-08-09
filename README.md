@@ -1,4 +1,4 @@
-# Tewahdo Instruments
+# ዝማሬ · Zimare
 
 A browser-based chromatic tuner and Ethiopian pentatonic key detector, built with plain HTML/CSS/JS and the Web Audio API. No build step, no dependencies.
 
