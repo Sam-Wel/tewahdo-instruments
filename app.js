@@ -21,7 +21,18 @@ const TUNER_BUFFER_SIZE = 2048;
 // clarity — how strongly the signal repeats at the detected period, 1.0
 // being a pure tone — clears this bar. Talking, clapping, and other
 // non-tonal noise score low and get ignored instead of jerking the needle.
-const TUNER_CLARITY_THRESHOLD = 0.92;
+//
+// Clarity for a mathematically clean tone is NOT constant across pitch —
+// with TUNER_BUFFER_SIZE fixed, lower notes fit fewer wave periods in the
+// buffer and score lower even with zero noise. Measured against real
+// AnalyserNode output (not a synthetic array) across two octaves: E2/82Hz
+// ~0.67, A2/110Hz ~0.75, D4/294Hz ~0.92, A4/440Hz ~0.95, E5/659Hz ~0.96.
+// An earlier value of 0.92 was tuned against a single 440Hz test tone and
+// silently rejected everything below roughly D4 as "noise" — i.e. most of
+// a normal vocal/instrument range. Real non-tonal noise measures ~0.06-0.09,
+// so 0.5 still rejects it with a wide margin while covering real notes
+// down through the low end of a typical tuning range.
+const TUNER_CLARITY_THRESHOLD = 0.5;
 // Smooths the displayed cents/needle across frames so a single noisy
 // sample can't yank the display; low enough to still feel responsive.
 const CENTS_SMOOTHING = 0.35;
